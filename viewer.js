@@ -25,6 +25,24 @@ const opt = {
 };
 const TOUCH = Q.get('touch') === '1' || (Q.get('touch') !== '0' && matchMedia('(pointer: coarse)').matches);
 
+// Phones drop requests, and a lost texture would otherwise stay blank until the page is reloaded.
+async function retry(job, tries = 4) {
+  for (let attempt = 1; ; attempt++) {
+    try { return await job(); } catch (error) {
+      if (attempt === tries) throw error;
+      await new Promise((done) => setTimeout(done, 500 * 2 ** attempt));
+    }
+  }
+}
+const plainFetch = window.fetch.bind(window);
+window.fetch = (input, options) => retry(async () => {
+  const response = await plainFetch(input instanceof Request ? input.clone() : input, options);
+  if (response.status >= 500) throw new Error(`HTTP ${response.status}`);
+  // small files are read whole here, so a connection cut halfway through is retried too
+  if (!response.ok || !/\.(ktx2|exr)(\?|$)/.test(input.url || input)) return response;
+  return new Response(await response.arrayBuffer(), { status: response.status, statusText: response.statusText, headers: response.headers });
+});
+
 // ---------------------------------------------------------------- settings
 const PRESETS = { tinggi: { scale: 1, planar: true }, sedang: { scale: 0.85, planar: true }, rendah: { scale: 0.7, planar: false } };
 const S = { preset: 'tinggi', scale: 1, planar: true, glare: true, sens: 1, eye: 1.6, fov: 62, fps: false };
@@ -235,7 +253,7 @@ function stage(txt, frac) {
 }
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 
-async function fetchBuf(url, key, guess) {
+const fetchBuf = (url, key, guess) => retry(async () => {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
   const total = +r.headers.get('Content-Length') || progress.items.get(key)?.total || guess || 0;
@@ -251,7 +269,7 @@ async function fetchBuf(url, key, guess) {
   const out = new Uint8Array(n); let o = 0;
   for (const p of parts) { out.set(p, o); o += p.length; }
   return out.buffer;
-}
+}, 3);
 
 // .rgb9e5: 'LM95', width, height, levels (uint32), then every mip as packed GL_RGB9_E5, rows bottom-first
 async function loadRGB9E5(url, key) {
@@ -477,7 +495,7 @@ async function load() {
   };
   const draco = new DRACOLoader().setDecoderPath('vendor/addons/libs/draco/gltf/');
   const gltfLoader = new GLTFLoader().setKTX2Loader(ktx2).setDRACOLoader(draco).setMeshoptDecoder(MeshoptDecoder);
-  const loadGLB = (f, key) => new Promise((res, rej) => gltfLoader.load(url(f), res, (e) => setProgress(key, e.loaded, e.total), rej));
+  const loadGLB = (f, key) => retry(() => new Promise((res, rej) => gltfLoader.load(url(f), res, (e) => setProgress(key, e.loaded, e.total), rej)), 3);
 
   stage('Mengunduh model, peta cahaya dan probe…');
   const size = (f, guess) => man.sizes.get(f) || guess;
