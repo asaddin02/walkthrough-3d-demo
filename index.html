@@ -98,6 +98,56 @@
   .touch #bar-top button { padding: 6px 9px; font-size: 12px; }
   .touch #map { width: 104px; height: 104px; right: 10px; top: 10px; }
   .touch #map.big { width: min(86vh, 92vw); height: min(86vh, 92vw); right: 50%; top: 50%; }
+
+  /* fiverr floating cta */
+  #fiverr-badge {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 99;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    background: rgba(14, 18, 27, 0.92);
+    border: 1.5px solid #1dbf73;
+    border-radius: 28px;
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 13px;
+    box-shadow: 0 6px 24px rgba(29, 191, 115, 0.35);
+    backdrop-filter: blur(8px);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  #fiverr-badge:hover {
+    transform: translateY(-2px) scale(1.03);
+    background: #1dbf73;
+    color: #0b0e14;
+    box-shadow: 0 8px 30px rgba(29, 191, 115, 0.6);
+  }
+  #fiverr-badge b { color: #1dbf73; font-weight: 700; }
+  #fiverr-badge:hover b { color: #0b0e14; }
+  .fiverr-pulse {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #1dbf73;
+    box-shadow: 0 0 0 0 rgba(29, 191, 115, 0.7);
+    animation: fiverrPulse 1.8s infinite;
+  }
+  #fiverr-badge:hover .fiverr-pulse { background: #0b0e14; }
+  @keyframes fiverrPulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(29, 191, 115, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(29, 191, 115, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(29, 191, 115, 0); }
+  }
+  .touch #fiverr-badge {
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    right: calc(18px + env(safe-area-inset-right));
+    padding: 8px 14px;
+    font-size: 11px;
+  }
 </style>
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
@@ -170,6 +220,12 @@
   <button id="help-close">Mulai menjelajah</button>
 </div>
 <div id="stick" class="hidden"><i></i></div>
+
+<a id="fiverr-badge" href="https://www.fiverr.com/prasadaarif/develop-interactive-3d-webgl-website-and-threejs-experience" target="_blank" rel="noopener noreferrer" title="Order Custom Three.js & WebGL on Fiverr">
+  <span class="fiverr-pulse"></span>
+  <span><b>Hire on Fiverr</b> · 3D WebGL & Three.js</span>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+</a>
 
 <script type="module" src="./viewer.js"></script>
 </body>
