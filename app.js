@@ -1,4 +1,4 @@
-import { PROJECTS } from './data.js';
+import { LIGHTING_COMPARISONS, PROJECTS, STUDIO_CONTACT } from './data.js';
 import { initCardStage } from './stage3d.js';
 
 const projectMap = new Map(PROJECTS.map((p) => [p.id, p]));
@@ -31,7 +31,294 @@ function setupMobileMenu() {
   });
 }
 
-function setupModal() {
+function setupLightingCurtain() {
+  const stage = document.getElementById('lighting-curtain');
+  const dayImg = document.getElementById('curtain-day-img');
+  const duskImg = document.getElementById('curtain-dusk-img');
+  const viewLabelEl = document.getElementById('curtain-view-label');
+  const pctEl = document.getElementById('curtain-pct');
+  const tabs = Array.from(document.querySelectorAll('[data-lighting-index]'));
+  if (!stage || !dayImg || !duskImg) return;
+
+  let splitPct = 50;
+  let dragging = false;
+
+  function applySplit(pct) {
+    splitPct = Math.max(4, Math.min(96, Math.round(pct * 10) / 10));
+    const rect = stage.getBoundingClientRect();
+    const px = (splitPct / 100) * rect.width;
+    stage.style.setProperty('--split', `${splitPct}%`);
+    stage.style.setProperty('--curtain-px', `${px}px`);
+    stage.setAttribute('aria-valuenow', String(Math.round(splitPct)));
+    if (pctEl) {
+      pctEl.textContent = `${Math.round(splitPct)}% daylight / ${100 - Math.round(splitPct)}% blue hour`;
+    }
+  }
+
+  function updateFromClientX(clientX) {
+    const rect = stage.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const pct = ((clientX - rect.left) / rect.width) * 100;
+    applySplit(pct);
+  }
+
+  function selectScene(index) {
+    const item = LIGHTING_COMPARISONS[index] || LIGHTING_COMPARISONS[0];
+    dayImg.src = item.dayImage;
+    dayImg.alt = `${item.title} daylight Cycles render`;
+    duskImg.src = item.duskImage;
+    duskImg.alt = `${item.title} blue-hour Cycles render`;
+    if (viewLabelEl) {
+      viewLabelEl.textContent = `${item.title}: ${item.viewLabel}`;
+    }
+    tabs.forEach((tab, i) => {
+      tab.setAttribute('aria-selected', String(i === index));
+    });
+  }
+
+  stage.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    updateFromClientX(e.clientX);
+    try {
+      stage.setPointerCapture(e.pointerId);
+    } catch {}
+  });
+
+  stage.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    updateFromClientX(e.clientX);
+  });
+
+  const stopDrag = () => {
+    dragging = false;
+  };
+  stage.addEventListener('pointerup', stopDrag);
+  stage.addEventListener('pointercancel', stopDrag);
+
+  stage.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      applySplit(splitPct - 5);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      applySplit(splitPct + 5);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      applySplit(10);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      applySplit(90);
+    }
+  });
+
+  tabs.forEach((tab) => {
+    const idx = Number(tab.dataset.lightingIndex);
+    tab.addEventListener('click', () => selectScene(idx));
+  });
+
+  const ro = new ResizeObserver(() => applySplit(splitPct));
+  ro.observe(stage);
+
+  selectScene(0);
+  applySplit(50);
+}
+
+function setupPortfolioFilter() {
+  const stack = document.getElementById('works-stack');
+  const filterBtns = Array.from(document.querySelectorAll('[data-filter]'));
+  const serviceTriggers = Array.from(document.querySelectorAll('[data-service-filter]'));
+  const items = Array.from(document.querySelectorAll('[data-categories]'));
+  if (!stack || !items.length) return;
+
+  function applyFilter(filterKey) {
+    const isAll = filterKey === 'all';
+    stack.dataset.filtered = String(!isAll);
+
+    items.forEach((el) => {
+      const cats = (el.dataset.categories || '').split(/\s+/);
+      const visible = isAll || cats.includes(filterKey);
+      el.hidden = !visible;
+    });
+
+    filterBtns.forEach((btn) => {
+      btn.setAttribute('aria-pressed', String(btn.dataset.filter === filterKey));
+    });
+  }
+
+  filterBtns.forEach((btn) => {
+    btn.addEventListener('click', () => applyFilter(btn.dataset.filter));
+  });
+
+  serviceTriggers.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.serviceFilter;
+      if (target === 'walkthrough') {
+        document.getElementById('walkthrough')?.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+      applyFilter(target);
+      document.getElementById('works')?.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+
+  applyFilter('all');
+}
+
+function setupBriefBuilder() {
+  const disciplineChips = Array.from(document.querySelectorAll('[data-brief-discipline]'));
+  const deliverableChips = Array.from(document.querySelectorAll('[data-brief-deliverable]'));
+  const timelineChips = Array.from(document.querySelectorAll('[data-brief-timeline]'));
+  const nameInput = document.getElementById('brief-name');
+  const notesInput = document.getElementById('brief-notes');
+  const previewEl = document.getElementById('brief-preview');
+  const whatsappBtn = document.getElementById('brief-whatsapp-btn');
+  const emailBtn = document.getElementById('brief-email-btn');
+  const copyBtn = document.getElementById('brief-copy-btn');
+  const copyStatusEl = document.getElementById('brief-copy-status');
+  const directEmailLink = document.getElementById('direct-email-link');
+  const directWhatsappLink = document.getElementById('direct-whatsapp-link');
+
+  if (!previewEl) return { prefillFromProject: () => {} };
+
+  const state = {
+    discipline: 'Architectural visualization',
+    deliverable: 'Stills and video tour',
+    timeline: '2 to 4 weeks',
+    reference: '',
+    sender: '',
+    notes: '',
+  };
+
+  if (directEmailLink) {
+    directEmailLink.href = `mailto:${STUDIO_CONTACT.email}`;
+    directEmailLink.textContent = STUDIO_CONTACT.email;
+  }
+
+  if (directWhatsappLink) {
+    if (STUDIO_CONTACT.whatsappNumber) {
+      directWhatsappLink.href = `https://wa.me/${STUDIO_CONTACT.whatsappNumber}`;
+      directWhatsappLink.textContent = STUDIO_CONTACT.whatsappDisplay || `+${STUDIO_CONTACT.whatsappNumber}`;
+    } else {
+      directWhatsappLink.hidden = true;
+    }
+  }
+
+  function buildBriefText() {
+    const lines = [
+      `Hello ${STUDIO_CONTACT.lead} (${STUDIO_CONTACT.studioName}),`,
+      '',
+      'I would like to discuss a custom 3D project:',
+      `Discipline: ${state.discipline}`,
+      `Deliverable: ${state.deliverable}`,
+      `Target timeline: ${state.timeline}`,
+    ];
+    if (state.reference) {
+      lines.push(`Reference study: ${state.reference}`);
+    }
+    if (state.sender.trim()) {
+      lines.push(`Client / Studio: ${state.sender.trim()}`);
+    }
+    if (state.notes.trim()) {
+      lines.push(`Project notes: ${state.notes.trim()}`);
+    }
+    lines.push('', 'Looking forward to scope and schedule details.');
+    return lines.join('\n');
+  }
+
+  function syncOutputs() {
+    const text = buildBriefText();
+    previewEl.textContent = text;
+
+    const subject = `3D Project Inquiry - ${state.discipline}`;
+    if (emailBtn) {
+      emailBtn.href = `mailto:${STUDIO_CONTACT.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
+    }
+
+    if (whatsappBtn) {
+      if (STUDIO_CONTACT.whatsappNumber) {
+        whatsappBtn.hidden = false;
+        whatsappBtn.href = `https://wa.me/${STUDIO_CONTACT.whatsappNumber}?text=${encodeURIComponent(text)}`;
+      } else {
+        whatsappBtn.hidden = true;
+      }
+    }
+  }
+
+  function wireRadioChips(chips, attr, stateKey) {
+    chips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        state[stateKey] = chip.getAttribute(attr);
+        chips.forEach((c) => c.setAttribute('aria-pressed', String(c === chip)));
+        syncOutputs();
+      });
+    });
+  }
+
+  wireRadioChips(disciplineChips, 'data-brief-discipline', 'discipline');
+  wireRadioChips(deliverableChips, 'data-brief-deliverable', 'deliverable');
+  wireRadioChips(timelineChips, 'data-brief-timeline', 'timeline');
+
+  if (nameInput) {
+    nameInput.addEventListener('input', () => {
+      state.sender = nameInput.value;
+      syncOutputs();
+    });
+  }
+
+  if (notesInput) {
+    notesInput.addEventListener('input', () => {
+      state.notes = notesInput.value;
+      syncOutputs();
+    });
+  }
+
+  if (copyBtn) {
+    copyBtn.addEventListener('click', async () => {
+      const text = buildBriefText();
+      try {
+        await navigator.clipboard.writeText(text);
+        if (copyStatusEl) copyStatusEl.textContent = 'Brief copied to clipboard';
+      } catch {
+        if (copyStatusEl) copyStatusEl.textContent = 'Select and copy the brief text above';
+      }
+      window.setTimeout(() => {
+        if (copyStatusEl) copyStatusEl.textContent = '';
+      }, 3000);
+    });
+  }
+
+  function prefillFromProject(project) {
+    if (!project) return;
+    state.reference = `${project.title} (${project.specs.footprint})`;
+    const targetDiscipline =
+      project.discipline === 'environment'
+        ? '3D environment or biome'
+        : 'Architectural visualization';
+    state.discipline = targetDiscipline;
+    disciplineChips.forEach((c) => {
+      c.setAttribute('aria-pressed', String(c.getAttribute('data-brief-discipline') === targetDiscipline));
+    });
+    if (notesInput && !notesInput.value.trim()) {
+      notesInput.value = `Interested in a custom project at the scale and quality bar of ${project.title}.`;
+      state.notes = notesInput.value;
+    }
+    syncOutputs();
+    document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Wire direct "Request similar work" buttons on case study rows
+  document.querySelectorAll('[data-inquire-project]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const p = projectMap.get(btn.dataset.inquireProject);
+      if (p) prefillFromProject(p);
+    });
+  });
+
+  syncOutputs();
+  return { prefillFromProject };
+}
+
+function setupModal(prefillFromProject) {
   const dialog = document.getElementById('project-modal');
   if (!dialog) return { openProject: () => {} };
 
@@ -43,9 +330,8 @@ function setupModal() {
   const summaryEl = document.getElementById('modal-summary');
   const specsEl = document.getElementById('modal-specs');
   const highlightsEl = document.getElementById('modal-highlights');
-  const gumroadBtn = document.getElementById('modal-buy-gumroad');
-  const itchBtn = document.getElementById('modal-buy-itch');
-  const cgtraderLink = document.getElementById('modal-buy-cgtrader');
+  const inquireBtn = document.getElementById('modal-inquire-btn');
+  const whatsappQuickBtn = document.getElementById('modal-whatsapp-btn');
   const closeBtn = document.getElementById('modal-close');
 
   let activeProject = null;
@@ -121,7 +407,6 @@ function setupModal() {
     subtitleEl.textContent = project.subtitle;
     summaryEl.textContent = project.summary;
 
-    // Spec cells
     specsEl.textContent = '';
     const specEntries = [
       ['Footprint', project.specs.footprint],
@@ -144,7 +429,6 @@ function setupModal() {
       specsEl.appendChild(cell);
     });
 
-    // Highlights
     highlightsEl.textContent = '';
     project.highlights.forEach((line) => {
       const li = document.createElement('li');
@@ -152,7 +436,6 @@ function setupModal() {
       highlightsEl.appendChild(li);
     });
 
-    // Thumbnails (lazy-loaded only when modal opens)
     thumbsEl.textContent = '';
     project.gallery.forEach((item, idx) => {
       const btn = document.createElement('button');
@@ -169,17 +452,15 @@ function setupModal() {
       thumbsEl.appendChild(btn);
     });
 
-    gumroadBtn.href = project.gumroadUrl;
-    gumroadBtn.textContent = `Buy on Gumroad (${project.gumroadPrice})`;
-
-    itchBtn.href = project.itchUrl;
-    itchBtn.textContent = `Buy on Itch.io (${project.itchPrice})`;
-
-    cgtraderLink.href = project.cgtraderUrl;
-    cgtraderLink.textContent =
-      project.cgtraderPrice === 'Storefront'
-        ? 'Browse CGTrader storefront'
-        : `Buy on CGTrader (${project.cgtraderPrice})`;
+    if (whatsappQuickBtn) {
+      if (STUDIO_CONTACT.whatsappNumber) {
+        whatsappQuickBtn.hidden = false;
+        const msg = `Hello ${STUDIO_CONTACT.lead} (${STUDIO_CONTACT.studioName}), I saw the ${project.title} case study and would like to discuss a custom 3D project.`;
+        whatsappQuickBtn.href = `https://wa.me/${STUDIO_CONTACT.whatsappNumber}?text=${encodeURIComponent(msg)}`;
+      } else {
+        whatsappQuickBtn.hidden = true;
+      }
+    }
 
     showGalleryImage(0);
 
@@ -203,6 +484,16 @@ function setupModal() {
     }
   }
 
+  if (inquireBtn) {
+    inquireBtn.addEventListener('click', () => {
+      const proj = activeProject;
+      closeModal();
+      if (proj && prefillFromProject) {
+        prefillFromProject(proj);
+      }
+    });
+  }
+
   videoToggleBtn.addEventListener('click', () => {
     if (showingVideo) {
       showGalleryImage(0);
@@ -221,7 +512,6 @@ function setupModal() {
     clearMediaStage();
   });
 
-  // Wire all inspect buttons across catalog & spec table
   document.querySelectorAll('[data-inspect]').forEach((btn) => {
     btn.addEventListener('click', () => {
       openProject(btn.dataset.inspect, btn);
@@ -236,6 +526,7 @@ function setupHeroStage(openProject) {
   const canvasEl = document.getElementById('card-stage-canvas');
   const activeNameEl = document.getElementById('stage-active-name');
   const activeMetaEl = document.getElementById('stage-active-meta');
+  const flipBtn = document.getElementById('stage-flip-btn');
   const inspectActiveBtn = document.getElementById('stage-inspect-active');
   const pauseBtn = document.getElementById('stage-pause-btn');
   const chips = Array.from(document.querySelectorAll('[data-card-index]'));
@@ -245,10 +536,16 @@ function setupHeroStage(openProject) {
   function updateReadout(project, index) {
     currentProject = project;
     if (activeNameEl) activeNameEl.textContent = project.title;
-    if (activeMetaEl) activeMetaEl.textContent = `${project.gumroadPrice} on Gumroad`;
+    if (activeMetaEl) activeMetaEl.textContent = `${project.scaleBadge}, ${project.specs.cameras}`;
     chips.forEach((chip, i) => {
       chip.setAttribute('aria-pressed', String(i === index));
     });
+  }
+
+  function syncFlipLabel(flipped) {
+    if (!flipBtn) return;
+    flipBtn.setAttribute('aria-pressed', String(flipped));
+    flipBtn.textContent = flipped ? 'Show front' : 'Flip for specs';
   }
 
   const stage = initCardStage({
@@ -257,6 +554,7 @@ function setupHeroStage(openProject) {
     projects: PROJECTS,
     onFocusChange: updateReadout,
     onSelectProject: (project) => openProject(project, canvasEl),
+    onFlipChange: syncFlipLabel,
   });
 
   chips.forEach((chip) => {
@@ -268,8 +566,16 @@ function setupHeroStage(openProject) {
         updateReadout(PROJECTS[idx], idx);
       }
     });
-    chip.addEventListener('dblclick', () => openProject(PROJECTS[idx], chip));
   });
+
+  if (flipBtn && stage) {
+    flipBtn.addEventListener('click', () => {
+      const flipped = stage.toggleFlip();
+      syncFlipLabel(flipped);
+    });
+  } else if (flipBtn) {
+    flipBtn.hidden = true;
+  }
 
   if (inspectActiveBtn) {
     inspectActiveBtn.addEventListener('click', () => {
@@ -295,6 +601,9 @@ function setupHeroStage(openProject) {
 
 document.addEventListener('DOMContentLoaded', () => {
   setupMobileMenu();
-  const { openProject } = setupModal();
+  setupLightingCurtain();
+  setupPortfolioFilter();
+  const { prefillFromProject } = setupBriefBuilder();
+  const { openProject } = setupModal(prefillFromProject);
   setupHeroStage(openProject);
 });
