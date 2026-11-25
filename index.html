@@ -1,232 +1,587 @@
 <!doctype html>
-<html lang="id">
+<html lang="en" data-type="product">
 <head>
-<meta charset="utf-8">
-<title>Demo walkthrough 3D interaktif</title>
-<link rel="icon" href="data:,">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<style>
-  :root { --bg: #0b0e14; --panel: rgba(14, 18, 27, 0.86); --line: rgba(255, 255, 255, 0.12); --txt: #e7ebf3;
-          --dim: #9aa4b6; --acc: #4f6bff; --acc2: #2b338f; --ok: #3ccf91; --warn: #ffb84d; }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; color: var(--txt);
-               font: 14px/1.45 "Poppins", "Segoe UI", system-ui, sans-serif; }
-  canvas#c { display: block; position: fixed; inset: 0; width: 100vw; height: 100vh; outline: none; touch-action: none; }
-  button { font: inherit; color: inherit; cursor: pointer; }
-  .hidden { display: none !important; }
-
-  /* loading */
-  #loading { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center;
-             justify-content: center; gap: 18px; background: radial-gradient(ellipse at 50% 40%, #18203a 0%, #0b0e14 70%); }
-  #loading h1 { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: 0.04em; }
-  #loading h1 b { color: #8c9bff; font-weight: 700; }
-  #loading .sub { color: var(--dim); margin-top: -10px; }
-  #bar { width: min(460px, 80vw); height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden; }
-  #bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--acc2), var(--acc)); transition: width 0.15s; }
-  #loadtxt { color: var(--dim); font-size: 13px; min-height: 20px; text-align: center; }
-  #enter { padding: 10px 26px; border-radius: 22px; border: 1px solid var(--acc); background: var(--acc2); font-weight: 600; }
-
-  /* hud */
-  #cross { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%;
-           background: rgba(255, 255, 255, 0.75); box-shadow: 0 0 3px #000; pointer-events: none; z-index: 5; }
-  #prompt { position: fixed; left: 50%; top: calc(50% + 34px); transform: translateX(-50%); padding: 6px 14px;
-            border-radius: 16px; background: var(--panel); border: 1px solid var(--line); pointer-events: none; z-index: 5; }
-  #prompt kbd, .help kbd { display: inline-block; min-width: 22px; padding: 0 6px; margin-right: 6px; border-radius: 4px;
-            background: rgba(255, 255, 255, 0.14); border: 1px solid rgba(255, 255, 255, 0.25); text-align: center; font: 600 12px/20px ui-monospace, monospace; }
-  #toast { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); padding: 9px 18px; border-radius: 8px;
-           background: rgba(30, 18, 10, 0.9); border: 1px solid var(--warn); color: #ffe2b8; z-index: 30; pointer-events: none;
-           transition: opacity 0.3s; }
-  #zone { position: fixed; left: 16px; bottom: 16px; padding: 6px 12px; border-radius: 14px; background: var(--panel);
-          border: 1px solid var(--line); z-index: 6; pointer-events: none; }
-  #zone small { color: var(--dim); margin-left: 6px; }
-  #fps { position: fixed; left: 16px; bottom: 54px; font: 12px/1.4 ui-monospace, monospace; color: #cfd6e4;
-         text-shadow: 0 1px 2px #000; pointer-events: none; white-space: pre; z-index: 6; }
-
-  /* toolbar */
-  #bar-top { position: fixed; left: 16px; top: 14px; display: flex; gap: 8px; z-index: 10; flex-wrap: wrap; max-width: calc(100vw - 280px); }
-  #bar-top button { padding: 7px 12px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); }
-  #bar-top button:hover, .menu button:hover { border-color: var(--acc); }
-  #bar-top button.on { background: var(--acc2); border-color: var(--acc); }
-
-  /* minimap */
-  #map { position: fixed; right: 16px; top: 14px; width: 240px; height: 240px; border-radius: 10px; overflow: hidden; z-index: 10;
-         border: 1px solid var(--line); background: #10141c; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5); cursor: crosshair; }
-  #map.big { width: min(78vh, 78vw); height: min(78vh, 78vw); right: 50%; top: 50%; transform: translate(50%, -50%); z-index: 40; }
-  #map canvas { width: 100%; height: 100%; display: block; }
-  #map .cap { position: absolute; left: 8px; bottom: 6px; font-size: 11px; color: var(--dim); pointer-events: none; text-shadow: 0 1px 2px #000; }
-
-  /* panels */
-  .menu { position: fixed; z-index: 20; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-          padding: 14px; backdrop-filter: blur(6px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); max-height: calc(100vh - 80px); overflow: auto; }
-  .menu h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--dim); font-weight: 600; }
-  .menu button.item { display: block; width: 100%; text-align: left; padding: 7px 10px; margin: 2px 0; border-radius: 7px;
-                      background: rgba(255, 255, 255, 0.04); border: 1px solid transparent; }
-  .menu button.item small { color: var(--dim); margin-left: 6px; }
-  #teleport { left: 16px; top: 56px; width: 300px; }
-  #settings { left: 16px; top: 56px; width: 320px; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 9px 0; }
-  .row label { color: var(--txt); }
-  .row output { color: var(--dim); font: 12px ui-monospace, monospace; min-width: 48px; text-align: right; }
-  .row input[type=range] { flex: 1; accent-color: var(--acc); }
-  .seg { display: flex; gap: 4px; }
-  .seg button { padding: 5px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
-  .seg button.on { background: var(--acc2); border-color: var(--acc); }
-  .note { color: var(--dim); font-size: 12px; margin-top: 8px; }
-
-  /* help / pause */
-  #help { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, 92vw); z-index: 45; }
-  .help table { width: 100%; border-collapse: collapse; }
-  .help td { padding: 5px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  .help td:first-child { white-space: nowrap; width: 42%; }
-  #pause { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); z-index: 9; padding: 8px 16px; border-radius: 18px;
-           background: var(--panel); border: 1px solid var(--line); color: var(--dim); pointer-events: none; }
-  #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 60; transition: opacity 0.35s; }
-  .shot #bar-top, .shot #map, .shot #zone, .shot #fps, .shot #cross, .shot #prompt, .shot #pause { visibility: hidden; }
-  /* touch */
-  #stick { display: none; position: fixed; left: calc(18px + env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom));
-           width: 124px; height: 124px; border-radius: 50%; background: rgba(14, 18, 27, 0.35); border: 1px solid rgba(255, 255, 255, 0.28);
-           z-index: 8; touch-action: none; }
-  #stick i { position: absolute; left: 35px; top: 35px; width: 52px; height: 52px; border-radius: 50%; background: rgba(255, 255, 255, 0.45);
-             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
-  #help-close { display: none; width: 100%; margin-top: 12px; padding: 10px; border-radius: 8px; background: var(--acc2); border: 1px solid var(--acc); font-weight: 600; }
-  .touch #stick, .touch #help-close { display: block; }
-  .touch #cross, .touch #pause, .touch #map .cap, .touch #b-shot, .touch #b-set { display: none !important; }
-  .touch #prompt { pointer-events: auto; }
-  .touch #prompt kbd { display: none; }
-  .touch #zone { left: 10px; bottom: auto; top: 54px; }
-  .touch #bar-top { left: 10px; top: 10px; max-width: calc(100vw - 130px); gap: 6px; }
-  .touch #bar-top button { padding: 6px 9px; font-size: 12px; }
-  .touch #map { width: 104px; height: 104px; right: 10px; top: 10px; }
-  .touch #map.big { width: min(86vh, 92vw); height: min(86vh, 92vw); right: 50%; top: 50%; }
-
-  /* fiverr floating cta */
-  #fiverr-badge {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 99;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 18px;
-    background: rgba(14, 18, 27, 0.92);
-    border: 1.5px solid #1dbf73;
-    border-radius: 28px;
-    color: #ffffff;
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 13px;
-    box-shadow: 0 6px 24px rgba(29, 191, 115, 0.35);
-    backdrop-filter: blur(8px);
-    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  #fiverr-badge:hover {
-    transform: translateY(-2px) scale(1.03);
-    background: #1dbf73;
-    color: #0b0e14;
-    box-shadow: 0 8px 30px rgba(29, 191, 115, 0.6);
-  }
-  #fiverr-badge b { color: #1dbf73; font-weight: 700; }
-  #fiverr-badge:hover b { color: #0b0e14; }
-  .fiverr-pulse {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: #1dbf73;
-    box-shadow: 0 0 0 0 rgba(29, 191, 115, 0.7);
-    animation: fiverrPulse 1.8s infinite;
-  }
-  #fiverr-badge:hover .fiverr-pulse { background: #0b0e14; }
-  @keyframes fiverrPulse {
-    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(29, 191, 115, 0.7); }
-    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(29, 191, 115, 0); }
-    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(29, 191, 115, 0); }
-  }
-  .touch #fiverr-badge {
-    bottom: calc(18px + env(safe-area-inset-bottom));
-    right: calc(18px + env(safe-area-inset-right));
-    padding: 8px 14px;
-    font-size: 11px;
-  }
-</style>
-<script type="importmap">
-{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
-</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="page-type" content="product">
+  <meta name="site-kind" content="tech">
+  <meta name="theme-color" content="#0c0e12">
+  <title>FullHouse3D | Measured 3D Architecture Scenes and Rainforest Worlds</title>
+  <meta name="description" content="Furnished 3D residences, modular furniture libraries, and a 4 by 4 km Bornean rainforest biome by Prasada Arif Nurudin for Blender 5.2, Unreal Engine 5.8, FBX, and GLB.">
+  <meta property="og:title" content="FullHouse3D | Measured 3D Architecture Scenes and Rainforest Worlds">
+  <meta property="og:description" content="Six measured 3D scenes delivered in Blender 5.2, Unreal Engine 5.8, FBX, and GLB, plus a browser WebGL walkthrough demo.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="./assets/images/hero-fallback.webp">
+  <link rel="icon" type="image/png" href="./assets/images/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-<canvas id="c" tabindex="0"></canvas>
+  <a class="skip-link" href="#catalog">Skip to catalog</a>
 
-<div id="loading">
-  <h1><b>Demo</b> Walkthrough 3D</h1>
-  <div class="sub">Contoh jelajah 3D di browser. Nama dan grafik fiktif.</div>
-  <div id="bar"><i></i></div>
-  <div id="loadtxt">Menyiapkan…</div>
-  <button id="enter" class="hidden">Masuk</button>
-</div>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand-link" href="#top" aria-label="FullHouse3D home">
+        <img class="brand-mark" src="./assets/images/brand-emblem.webp" alt="" width="36" height="36">
+        <span class="brand-name">FullHouse3D</span>
+      </a>
 
-<div id="cross" class="hidden"></div>
-<div id="prompt" class="hidden"></div>
-<div id="toast" style="opacity:0"></div>
-<div id="zone" class="hidden"></div>
-<div id="fps" class="hidden"></div>
-<div id="pause" class="hidden">Klik layar untuk berjalan · <b>Esc</b> untuk menu</div>
-<div id="flash"></div>
+      <nav class="site-nav" aria-label="Primary navigation">
+        <a class="nav-link" href="#catalog">Catalog</a>
+        <a class="nav-link" href="#bundle">Five-house bundle</a>
+        <a class="nav-link" href="#walkthrough">Live walkthrough</a>
+        <a class="nav-link" href="#specs">Specifications</a>
+      </nav>
 
-<div id="bar-top" class="hidden">
-  <button id="b-tele" title="Pindah ke titik lain (T)">Pindah ke…</button>
-  <button id="b-fly" title="Mode terbang / drone (F)">Mode terbang</button>
-  <button id="b-set" title="Pengaturan">Pengaturan</button>
-  <button id="b-help" title="Bantuan (H)">Bantuan</button>
-  <button id="b-shot" title="Tangkap layar (P)">Tangkap layar</button>
-</div>
+      <div class="header-actions">
+        <a class="btn btn-primary btn-compact" href="#bundle">Get five-house pack</a>
+        <button id="menu-toggle" class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Toggle navigation menu">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <line x1="4" y1="7" x2="20" y2="7"></line>
+            <line x1="4" y1="12" x2="20" y2="12"></line>
+            <line x1="4" y1="17" x2="20" y2="17"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
 
-<div id="map" class="hidden"><canvas width="480" height="480"></canvas><div class="cap">M: perbesar · klik: pindah ke sana</div></div>
+    <nav id="mobile-menu" class="mobile-menu" aria-label="Mobile navigation" hidden>
+      <a class="mobile-nav-link" href="#catalog">Catalog</a>
+      <a class="mobile-nav-link" href="#bundle">Five-house bundle</a>
+      <a class="mobile-nav-link" href="#walkthrough">Live walkthrough</a>
+      <a class="mobile-nav-link" href="#specs">Specifications</a>
+      <a class="btn btn-primary" href="https://prasadaarif.gumroad.com/l/yfgssh" target="_blank" rel="noopener noreferrer">Buy Gumroad bundle ($79.99)</a>
+      <a class="btn btn-secondary" href="./klinik/">Launch live walkthrough</a>
+    </nav>
+  </header>
 
-<div id="teleport" class="menu hidden">
-  <h3>Titik jelajah</h3><div id="t-spawns"></div>
-  <h3 style="margin-top:12px">Sudut pilihan</h3><div id="t-cams"></div>
-  <h3 style="margin-top:12px">Drone</h3><div id="t-drone"></div>
-</div>
+  <main id="top">
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <h1 id="hero-heading">Furnished 3D homes and rainforest worlds</h1>
+          <p class="hero-deck">Six measured scenes for Blender 5.2, Unreal Engine 5.8, FBX, and GLB.</p>
 
-<div id="settings" class="menu hidden">
-  <h3>Pengaturan</h3>
-  <div class="row"><label>Kualitas</label><div class="seg" id="s-preset">
-    <button data-p="tinggi">Tinggi</button><button data-p="sedang">Sedang</button><button data-p="rendah">Rendah</button></div></div>
-  <div class="row"><label for="s-scale">Skala resolusi</label><input id="s-scale" type="range" min="50" max="100" step="5"><output id="o-scale"></output></div>
-  <div class="row"><label for="s-planar">Pantulan lantai</label><input id="s-planar" type="checkbox"></div>
-  <div class="row"><label for="s-glare">Kilau lampu</label><input id="s-glare" type="checkbox"></div>
-  <div class="row"><label for="s-sens">Sensitivitas mouse</label><input id="s-sens" type="range" min="0.2" max="3" step="0.1"><output id="o-sens"></output></div>
-  <div class="row"><label for="s-eye">Tinggi mata</label><input id="s-eye" type="range" min="1.4" max="1.9" step="0.01"><output id="o-eye"></output></div>
-  <div class="row"><label for="s-fov">Sudut pandang</label><input id="s-fov" type="range" min="50" max="80" step="1"><output id="o-fov"></output></div>
-  <div class="row"><label for="s-fps">Tampilkan FPS</label><input id="s-fps" type="checkbox"></div>
-  <div class="note" id="s-note"></div>
-</div>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#catalog">Browse six scenes</a>
+            <a class="btn btn-secondary" href="./klinik/">Launch live walkthrough</a>
+          </div>
 
-<div id="help" class="menu help hidden">
-  <h3>Cara menjelajah</h3>
-  <table>
-    <tr><td>Klik layar</td><td>Mulai berjalan (kursor terkunci). <kbd>Esc</kbd> melepas kursor dan membuka menu.</td></tr>
-    <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> + mouse</td><td>Berjalan dan melihat sekeliling. Tanpa mengunci kursor: seret dengan mouse.</td></tr>
-    <tr><td><kbd>Shift</kbd></td><td>Berlari (di mode terbang: lebih cepat).</td></tr>
-    <tr><td><kbd>Spasi</kbd></td><td>Lompat (di mode terbang: naik). <kbd>C</kbd> turun.</td></tr>
-    <tr><td><kbd>E</kbd> atau klik</td><td>Buka / tutup pintu di depan Anda. Pintu R.Dokter bergeser, pintu toilet terkunci.</td></tr>
-    <tr><td><kbd>F</kbd></td><td>Mode terbang (drone) untuk melihat fasad dan atap. Tekan lagi untuk mendarat.</td></tr>
-    <tr><td><kbd>T</kbd></td><td>Pindah ke titik jelajah atau ke sudut pilihan.</td></tr>
-    <tr><td><kbd>M</kbd></td><td>Perbesar peta. Klik pada peta untuk pindah ke sana.</td></tr>
-    <tr><td><kbd>P</kbd></td><td>Tangkap layar (PNG, tanpa tombol dan peta).</td></tr>
-    <tr><td><kbd>H</kbd></td><td>Bantuan ini.</td></tr>
-  </table>
-  <div class="note">Cahaya dihitung lebih dulu dengan Cycles (baked), jadi lampu tidak bisa dinyalakan atau dimatikan.</div>
-  <button id="help-close">Mulai menjelajah</button>
-</div>
-<div id="stick" class="hidden"><i></i></div>
+          <div class="hero-ledger" aria-label="Studio catalog totals">
+            <div class="ledger-item">
+              <span class="ledger-val">6 scenes</span>
+              <span class="ledger-label">5 homes and 1 biome</span>
+            </div>
+            <div class="ledger-item">
+              <span class="ledger-val">911 assets</span>
+              <span class="ledger-label">Catalog and kit pieces</span>
+            </div>
+            <div class="ledger-item">
+              <span class="ledger-val">4 formats</span>
+              <span class="ledger-label">Blender, UE 5.8, FBX, GLB</span>
+            </div>
+          </div>
+        </div>
 
-<a id="fiverr-badge" href="https://www.fiverr.com/prasadaarif/develop-interactive-3d-webgl-website-and-threejs-experience" target="_blank" rel="noopener noreferrer" title="Order Custom Three.js & WebGL on Fiverr">
-  <span class="fiverr-pulse"></span>
-  <span><b>Hire on Fiverr</b> · 3D WebGL & Three.js</span>
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-</a>
+        <div class="hero-stage-col">
+          <div id="card-stage-viewport" class="stage-viewport">
+            <img class="stage-fallback" src="./assets/images/hero-fallback.webp" alt="Five brushed gold and obsidian architectural playing cards floating above drafting plans" width="1600" height="900">
+            <canvas id="card-stage-canvas" role="img" aria-label="Interactive 3D hand of six obsidian and gold architectural cards. Click any card to inspect gallery renders and specifications."></canvas>
+          </div>
 
-<script type="module" src="./viewer.js"></script>
+          <div class="stage-controls">
+            <div class="stage-readout">
+              <span id="stage-active-name" class="stage-active-name">House of Serenity</span>
+              <span id="stage-active-meta" class="stage-active-meta">$19.99 on Gumroad</span>
+            </div>
+
+            <div class="stage-deck-nav" role="group" aria-label="Select 3D project card">
+              <button class="deck-chip" type="button" data-card-index="0" aria-pressed="true" aria-label="Focus House of Serenity">K</button>
+              <button class="deck-chip" type="button" data-card-index="1" aria-pressed="false" aria-label="Focus Tropical Villa">Q</button>
+              <button class="deck-chip" type="button" data-card-index="2" aria-pressed="false" aria-label="Focus Urban Modern House">J</button>
+              <button class="deck-chip" type="button" data-card-index="3" aria-pressed="false" aria-label="Focus Modern Joglo House">10</button>
+              <button class="deck-chip" type="button" data-card-index="4" aria-pressed="false" aria-label="Focus Highland Hillside House">9</button>
+              <button class="deck-chip" type="button" data-card-index="5" aria-pressed="false" aria-label="Focus Borneo Giant Rainforest">A</button>
+              <button id="stage-inspect-active" class="btn btn-secondary btn-compact" type="button">Inspect scene</button>
+              <button id="stage-pause-btn" class="btn btn-quiet btn-compact" type="button" aria-pressed="false">Pause motion</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="catalog" class="band" aria-labelledby="catalog-heading">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="catalog-heading">Six ready-to-render 3D releases</h2>
+          <p>Packed Cycles lighting, PNG floor plans, and FBX/GLB exports. Select any render to open gallery views and video.</p>
+        </div>
+
+        <div class="catalog-stack">
+          <!-- Lead Feature 01: House of Serenity -->
+          <article class="project-feature">
+            <button class="project-media-btn" type="button" data-inspect="house-of-serenity" aria-label="Inspect House of Serenity gallery and specifications">
+              <div class="project-media-frame">
+                <img src="./assets/images/house-of-serenity/cover.webp" alt="House of Serenity three-storey charred timber residence in daylight" width="1280" height="720">
+              </div>
+            </button>
+
+            <div class="project-body">
+              <div class="project-header-line">
+                <h3>House of Serenity</h3>
+                <span class="project-price">$19.99 / $12.99</span>
+              </div>
+              <p class="project-summary">Three-storey Japanese-modern residence on a 20 x 20 m site with inner courtyard, tea pavilion, ofuro spa, cinema, and rooftop pergola.</p>
+              <div class="spec-row">
+                <div class="spec-cell">
+                  <span class="spec-key">Cameras</span>
+                  <span class="spec-val">49 cameras</span>
+                </div>
+                <div class="spec-cell">
+                  <span class="spec-key">Zones</span>
+                  <span class="spec-val">20+ rooms</span>
+                </div>
+                <div class="spec-cell">
+                  <span class="spec-key">Formats</span>
+                  <span class="spec-val">Blender, FBX, GLB</span>
+                </div>
+              </div>
+              <div class="project-actions">
+                <button class="btn btn-primary btn-compact" type="button" data-inspect="house-of-serenity">Inspect</button>
+                <a class="btn btn-secondary btn-compact" href="https://prasadaarif.gumroad.com/l/hepblh" target="_blank" rel="noopener noreferrer">Gumroad $19.99</a>
+                <a class="text-link" href="https://asaddin02.itch.io/house-of-serenity" target="_blank" rel="noopener noreferrer">Itch $12.99</a>
+                <a class="text-link" href="https://www.cgtrader.com/3d-models/exterior/house/house-of-serenity-furnished-japanese-modern-house-archviz-cb5f5f99-8341-4868-bba5-8a97ffa36822" target="_blank" rel="noopener noreferrer">CGTrader $25</a>
+              </div>
+            </div>
+          </article>
+
+          <!-- Asymmetric Pair 02 & 03: Tropical Villa (7 cols) + Urban Modern House (5 cols) -->
+          <div class="project-pair">
+            <article class="project-entry">
+              <button class="project-media-btn" type="button" data-inspect="tropical-villa" aria-label="Inspect Tropical Villa gallery and specifications">
+                <div class="project-media-frame">
+                  <img src="./assets/images/tropical-villa/cover.webp" alt="Tropical Villa open-air pool deck with limestone and teak screens" width="1280" height="720">
+                </div>
+              </button>
+              <div class="project-body">
+                <div class="project-header-line">
+                  <h3>Tropical Villa</h3>
+                  <span class="project-price">$24.99 / $14.99</span>
+                </div>
+                <p class="project-summary">Open-air pool villa on a 24 x 32 m lot with concrete walls, teak screens, 12 x 4 m pool deck, and sky court.</p>
+                <div class="spec-row">
+                  <div class="spec-cell">
+                    <span class="spec-key">Cameras</span>
+                    <span class="spec-val">14 cameras</span>
+                  </div>
+                  <div class="spec-cell">
+                    <span class="spec-key">Library</span>
+                    <span class="spec-val">130 pieces</span>
+                  </div>
+                  <div class="spec-cell">
+                    <span class="spec-key">Materials</span>
+                    <span class="spec-val">163 PBR</span>
+                  </div>
+                </div>
+                <div class="project-actions">
+                  <button class="btn btn-primary btn-compact" type="button" data-inspect="tropical-villa">Inspect</button>
+                  <a class="btn btn-secondary btn-compact" href="https://prasadaarif.gumroad.com/l/lawxyb" target="_blank" rel="noopener noreferrer">Gumroad $24.99</a>
+                  <a class="text-link" href="https://asaddin02.itch.io/tropical-villa" target="_blank" rel="noopener noreferrer">Itch $14.99</a>
+                  <a class="text-link" href="https://www.cgtrader.com/3d-models/exterior/house/tropical-villa-furnished-modern-pool-villa-archviz" target="_blank" rel="noopener noreferrer">CGTrader $29</a>
+                </div>
+              </div>
+            </article>
+
+            <article class="project-entry">
+              <button class="project-media-btn" type="button" data-inspect="urban-modern-house" aria-label="Inspect Urban Modern House gallery and specifications">
+                <div class="project-media-frame">
+                  <img src="./assets/images/urban-modern-house/cover.webp" alt="Urban Modern House two-storey facade with wood battens and breeze blocks" width="1280" height="720">
+                </div>
+              </button>
+              <div class="project-body">
+                <div class="project-header-line">
+                  <h3>Urban Modern House</h3>
+                  <span class="project-price">$19.99 / $12.99</span>
+                </div>
+                <p class="project-summary">Two-storey city house (236 m2) with cantilevered wood battens, double-height living void, floating stair, and street context.</p>
+                <div class="spec-row">
+                  <div class="spec-cell">
+                    <span class="spec-key">Cameras</span>
+                    <span class="spec-val">15 cameras</span>
+                  </div>
+                  <div class="spec-cell">
+                    <span class="spec-key">Library</span>
+                    <span class="spec-val">156 pieces</span>
+                  </div>
+                  <div class="spec-cell">
+                    <span class="spec-key">Zones</span>
+                    <span class="spec-val">16 rooms</span>
+                  </div>
+                </div>
+                <div class="project-actions">
+                  <button class="btn btn-primary btn-compact" type="button" data-inspect="urban-modern-house">Inspect</button>
+                  <a class="btn btn-secondary btn-compact" href="https://prasadaarif.gumroad.com/l/yxbafg" target="_blank" rel="noopener noreferrer">Gumroad $19.99</a>
+                  <a class="text-link" href="https://asaddin02.itch.io/urban-modern-house" target="_blank" rel="noopener noreferrer">Itch $12.99</a>
+                  <a class="text-link" href="https://www.cgtrader.com/3d-models/exterior/house/urban-modern-house-furnished-two-storey-city-house-archviz" target="_blank" rel="noopener noreferrer">CGTrader $25</a>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Mirrored Asymmetric Pair 04 & 05: Modern Joglo House (5 cols) + Highland Hillside House (7 cols) -->
+          <div class="project-pair project-pair-mirror">
+            <article class="project-entry">
+              <button class="project-media-btn" type="button" data-inspect="modern-joglo-house" aria-label="Inspect Modern Joglo House gallery and specifications">
+                <div class="project-media-frame">
+                  <img src="./assets/images/modern-joglo-house/cover.webp" alt="Modern Joglo House stepped clay-tile roof and forecourt approach" width="1280" height="720">
+                </div>
+              </button>
+              <div class="project-body">
+                <div class="project-header-line">
+                  <h3>Modern Joglo House</h3>
+                  <span class="project-price">$24.99 / $14.99</span>
+                </div>
+                <p class="project-summary">Javanese courtyard house on a 26 x 32 m lot with teak pendopo hall, five-step tumpang sari lantern, and koi pond.</p>
+                <div class="spec-row">
+                  <div class="spec-cell">
+                    <span class="spec-key">Cameras</span>
+                    <span class="spec-val">24 cameras</span>
+                  </div>
+                  <div class="spec-cell">
+                    <span class="spec-key">Library</span>
+                    <span class="spec-val">220 pieces</span>
+                  </div>
+                  <div class="spec-cell">
+                    <span class="spec-key">Area</span>
+                    <span class="spec-val">330.8 m2</span>
+                  </div>
+                </div>
+                <div class="project-actions">
+                  <button class="btn btn-primary btn-compact" type="button" data-inspect="modern-joglo-house">Inspect</button>
+                  <a class="btn btn-secondary btn-compact" href="https://prasadaarif.gumroad.com/l/hgvhj" target="_blank" rel="noopener noreferrer">Gumroad $24.99</a>
+                  <a class="text-link" href="https://asaddin02.itch.io/modern-joglo-house" target="_blank" rel="noopener noreferrer">Itch $14.99</a>
+                  <a class="text-link" href="https://www.cgtrader.com/3d-models/exterior/house/modern-joglo-house-furnished-javanese-courtyard-house-archviz" target="_blank" rel="noopener noreferrer">CGTrader $29</a>
+                </div>
+              </div>
+            </article>
+
+            <article class="project-entry">
+              <button class="project-media-btn" type="button" data-inspect="highland-hillside-house" aria-label="Inspect Highland Hillside House gallery and specifications">
+                <div class="project-media-frame">
+                  <img src="./assets/images/highland-hillside-house/cover.webp" alt="Highland Hillside House cantilevered over a terraced tea valley" width="1280" height="720">
+                </div>
+              </button>
+              <div class="project-body">
+                <div class="project-header-line">
+                  <h3>Highland Hillside House</h3>
+                  <span class="project-price">$24.99 / $14.99</span>
+                </div>
+                <p class="project-summary">Three-level slope house (383.5 m2) with a 2.80 m cantilevered glass box, timber bridge entry, and tea-valley deck.</p>
+                <div class="spec-row">
+                  <div class="spec-cell">
+                    <span class="spec-key">Cameras</span>
+                    <span class="spec-val">23 cameras</span>
+                  </div>
+                  <div class="spec-cell">
+                    <span class="spec-key">Library</span>
+                    <span class="spec-val">204 pieces</span>
+                  </div>
+                  <div class="spec-cell">
+                    <span class="spec-key">Area</span>
+                    <span class="spec-val">383.5 m2</span>
+                  </div>
+                </div>
+                <div class="project-actions">
+                  <button class="btn btn-primary btn-compact" type="button" data-inspect="highland-hillside-house">Inspect</button>
+                  <a class="btn btn-secondary btn-compact" href="https://prasadaarif.gumroad.com/l/unzbni" target="_blank" rel="noopener noreferrer">Gumroad $24.99</a>
+                  <a class="text-link" href="https://asaddin02.itch.io/highland-hillside-house" target="_blank" rel="noopener noreferrer">Itch $14.99</a>
+                  <a class="text-link" href="https://www.cgtrader.com/3d-models/exterior/house/highland-hillside-house-furnished-modern-slope-house-archviz" target="_blank" rel="noopener noreferrer">CGTrader $29</a>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <!-- Biome Feature 06: Borneo Giant Rainforest -->
+          <article class="project-feature project-feature-reverse">
+            <div class="project-body">
+              <div class="project-header-line">
+                <h3>Borneo Giant Rainforest</h3>
+                <span class="project-price">$29.99 / $19.99</span>
+              </div>
+              <p class="project-summary">Twelve giant lowland trees (51 to 99 m) with LOD0 to LOD3 chains, UCX hulls, wetland foliage, and a 4 x 4 km World Partition map.</p>
+              <div class="spec-row">
+                <div class="spec-cell">
+                  <span class="spec-key">Biome map</span>
+                  <span class="spec-val">4 x 4 km</span>
+                </div>
+                <div class="spec-cell">
+                  <span class="spec-key">Kit</span>
+                  <span class="spec-val">161 meshes</span>
+                </div>
+                <div class="spec-cell">
+                  <span class="spec-key">Engines</span>
+                  <span class="spec-val">UE 5.8, Blender</span>
+                </div>
+              </div>
+              <div class="project-actions">
+                <button class="btn btn-primary btn-compact" type="button" data-inspect="borneo-giant-rainforest">Inspect</button>
+                <a class="btn btn-secondary btn-compact" href="https://prasadaarif.gumroad.com/l/gqmfqd" target="_blank" rel="noopener noreferrer">Gumroad $29.99</a>
+                <a class="text-link" href="https://asaddin02.itch.io/borneo-giant-rainforest" target="_blank" rel="noopener noreferrer">Itch $19.99</a>
+                <a class="text-link" href="https://www.cgtrader.com/designers/prasadaarif" target="_blank" rel="noopener noreferrer">CGTrader</a>
+              </div>
+            </div>
+
+            <button class="project-media-btn" type="button" data-inspect="borneo-giant-rainforest" aria-label="Inspect Borneo Giant Rainforest gallery and specifications">
+              <div class="project-media-frame">
+                <img src="./assets/images/borneo-giant-rainforest/cover.webp" alt="Borneo Giant Rainforest 4 by 4 km aerial canopy rendered in Unreal Engine 5.8" width="1280" height="720">
+              </div>
+            </button>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="bundle" class="band band-surface" aria-labelledby="bundle-heading">
+      <div class="wrap bundle-grid">
+        <div class="bundle-copy">
+          <h2 id="bundle-heading">Complete five-house architectural pack</h2>
+          <p>All five furnished residences in Blender 5.2, FBX, and GLB, with 750 catalog assets and 125 cameras.</p>
+
+          <div class="bundle-pricing">
+            <span class="bundle-price-now">$79.99</span>
+            <span class="bundle-price-was">$114.95</span>
+            <span class="bundle-price-note">Save 30% on Gumroad ($49.99 on Itch.io)</span>
+          </div>
+
+          <ul class="bundle-list">
+            <li>House of Serenity</li>
+            <li>Tropical Villa</li>
+            <li>Urban Modern House</li>
+            <li>Modern Joglo House</li>
+            <li>Highland Hillside House</li>
+            <li>750 catalog assets and PNG plans</li>
+          </ul>
+
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="https://prasadaarif.gumroad.com/l/yfgssh" target="_blank" rel="noopener noreferrer">Buy Gumroad bundle ($79.99)</a>
+            <a class="btn btn-secondary" href="https://itch.io/s/224356/fullhouse3d-5-house-architectural-megapack" target="_blank" rel="noopener noreferrer">Buy Itch.io bundle ($49.99)</a>
+          </div>
+        </div>
+
+        <div class="bundle-visuals">
+          <div class="bundle-frame">
+            <img src="./assets/images/bundle-pergola.webp" alt="Rooftop timber pergola and sky garden terrace in House of Serenity" width="1120" height="630">
+          </div>
+          <div class="bundle-frame">
+            <img src="./assets/images/bundle-aerial.webp" alt="Aerial view of Modern Joglo House courtyard and surrounding rice fields" width="1120" height="630">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="walkthrough" class="band" aria-labelledby="walkthrough-heading">
+      <div class="wrap walkthrough-grid">
+        <div class="walkthrough-frame">
+          <img src="./assets/images/walkthrough-plan.webp" alt="Architectural floor plans with room areas and dimensions in metres" width="1120" height="630">
+        </div>
+
+        <div class="walkthrough-copy">
+          <h2 id="walkthrough-heading">Interactive clinic WebGL walkthrough</h2>
+          <p>Test real-time scale, baked lighting, and room navigation directly in the browser from architectural floor plans.</p>
+
+          <div class="walkthrough-facts">
+            <div class="spec-cell">
+              <span class="spec-key">Runtime</span>
+              <span class="spec-val">Three.js WebGL</span>
+            </div>
+            <div class="spec-cell">
+              <span class="spec-key">Controls</span>
+              <span class="spec-val">Orbit and room tour</span>
+            </div>
+            <div class="spec-cell">
+              <span class="spec-key">Source pipeline</span>
+              <span class="spec-val">Floor plan to GLB</span>
+            </div>
+            <div class="spec-cell">
+              <span class="spec-key">Client access</span>
+              <span class="spec-val">Direct browser URL</span>
+            </div>
+          </div>
+
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="./klinik/">Launch live walkthrough</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="specs" class="band band-surface" aria-labelledby="specs-heading">
+      <div class="wrap">
+        <div class="section-head">
+          <h2 id="specs-heading">Measured delivery matrix</h2>
+          <p>Verified geometry, camera counts, formats, and direct marketplace pricing across all six current studio releases.</p>
+        </div>
+
+        <div class="table-scroll">
+          <table class="spec-table">
+            <thead>
+              <tr>
+                <th scope="col">Release</th>
+                <th scope="col">Footprint / scale</th>
+                <th scope="col">Library / kit</th>
+                <th scope="col">Cameras / LODs</th>
+                <th scope="col">Formats</th>
+                <th scope="col">Gumroad</th>
+                <th scope="col">Itch.io</th>
+                <th scope="col">Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>House of Serenity</td>
+                <td class="num-cell">20 x 20 m lot</td>
+                <td class="num-cell">40 assets</td>
+                <td class="num-cell">49 cameras</td>
+                <td>Blender 5.2, FBX, GLB</td>
+                <td class="num-cell"><a class="text-link" href="https://prasadaarif.gumroad.com/l/hepblh" target="_blank" rel="noopener noreferrer">$19.99</a></td>
+                <td class="num-cell"><a class="text-link" href="https://asaddin02.itch.io/house-of-serenity" target="_blank" rel="noopener noreferrer">$12.99</a></td>
+                <td><button class="btn btn-quiet btn-compact" type="button" data-inspect="house-of-serenity">Inspect</button></td>
+              </tr>
+              <tr>
+                <td>Tropical Villa</td>
+                <td class="num-cell">24 x 32 m lot</td>
+                <td class="num-cell">130 assets</td>
+                <td class="num-cell">14 cameras</td>
+                <td>Blender 5.2, FBX, GLB</td>
+                <td class="num-cell"><a class="text-link" href="https://prasadaarif.gumroad.com/l/lawxyb" target="_blank" rel="noopener noreferrer">$24.99</a></td>
+                <td class="num-cell"><a class="text-link" href="https://asaddin02.itch.io/tropical-villa" target="_blank" rel="noopener noreferrer">$14.99</a></td>
+                <td><button class="btn btn-quiet btn-compact" type="button" data-inspect="tropical-villa">Inspect</button></td>
+              </tr>
+              <tr>
+                <td>Urban Modern House</td>
+                <td class="num-cell">12 x 20 m (236 m2)</td>
+                <td class="num-cell">156 assets</td>
+                <td class="num-cell">15 cameras</td>
+                <td>Blender 5.2, FBX, GLB</td>
+                <td class="num-cell"><a class="text-link" href="https://prasadaarif.gumroad.com/l/yxbafg" target="_blank" rel="noopener noreferrer">$19.99</a></td>
+                <td class="num-cell"><a class="text-link" href="https://asaddin02.itch.io/urban-modern-house" target="_blank" rel="noopener noreferrer">$12.99</a></td>
+                <td><button class="btn btn-quiet btn-compact" type="button" data-inspect="urban-modern-house">Inspect</button></td>
+              </tr>
+              <tr>
+                <td>Modern Joglo House</td>
+                <td class="num-cell">26 x 32 m (330.8 m2)</td>
+                <td class="num-cell">220 assets</td>
+                <td class="num-cell">24 cameras</td>
+                <td>Blender 5.2, FBX, GLB</td>
+                <td class="num-cell"><a class="text-link" href="https://prasadaarif.gumroad.com/l/hgvhj" target="_blank" rel="noopener noreferrer">$24.99</a></td>
+                <td class="num-cell"><a class="text-link" href="https://asaddin02.itch.io/modern-joglo-house" target="_blank" rel="noopener noreferrer">$14.99</a></td>
+                <td><button class="btn btn-quiet btn-compact" type="button" data-inspect="modern-joglo-house">Inspect</button></td>
+              </tr>
+              <tr>
+                <td>Highland Hillside House</td>
+                <td class="num-cell">383.5 m2 + 64.1 m2 deck</td>
+                <td class="num-cell">204 assets</td>
+                <td class="num-cell">23 cameras</td>
+                <td>Blender 5.2, FBX, GLB</td>
+                <td class="num-cell"><a class="text-link" href="https://prasadaarif.gumroad.com/l/unzbni" target="_blank" rel="noopener noreferrer">$24.99</a></td>
+                <td class="num-cell"><a class="text-link" href="https://asaddin02.itch.io/highland-hillside-house" target="_blank" rel="noopener noreferrer">$14.99</a></td>
+                <td><button class="btn btn-quiet btn-compact" type="button" data-inspect="highland-hillside-house">Inspect</button></td>
+              </tr>
+              <tr>
+                <td>Borneo Giant Rainforest</td>
+                <td class="num-cell">4 x 4 km map</td>
+                <td class="num-cell">161 meshes</td>
+                <td class="num-cell">LOD0 to LOD3, UCX</td>
+                <td>UE 5.8, Blender, FBX, GLB</td>
+                <td class="num-cell"><a class="text-link" href="https://prasadaarif.gumroad.com/l/gqmfqd" target="_blank" rel="noopener noreferrer">$29.99</a></td>
+                <td class="num-cell"><a class="text-link" href="https://asaddin02.itch.io/borneo-giant-rainforest" target="_blank" rel="noopener noreferrer">$19.99</a></td>
+                <td><button class="btn btn-quiet btn-compact" type="button" data-inspect="borneo-giant-rainforest">Inspect</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="footer-top">
+        <div class="footer-col">
+          <a class="brand-link" href="#top" aria-label="FullHouse3D back to top">
+            <img class="brand-mark" src="./assets/images/brand-emblem.webp" alt="" width="36" height="36" loading="lazy">
+            <span class="brand-name">FullHouse3D</span>
+          </a>
+          <p class="footer-note">Architectural 3D environments and interactive web walkthroughs by Prasada Arif Nurudin.</p>
+        </div>
+
+        <div class="footer-col">
+          <span class="footer-heading">Navigation</span>
+          <a class="footer-link" href="#catalog">Six 3D releases</a>
+          <a class="footer-link" href="#bundle">Five-house bundle</a>
+          <a class="footer-link" href="./klinik/">Live clinic walkthrough</a>
+          <a class="footer-link" href="#specs">Measured delivery matrix</a>
+        </div>
+
+        <div class="footer-col">
+          <span class="footer-heading">Storefronts</span>
+          <a class="footer-link" href="https://prasadaarif.gumroad.com/l/yfgssh" target="_blank" rel="noopener noreferrer">Gumroad five-house bundle</a>
+          <a class="footer-link" href="https://itch.io/s/224356/fullhouse3d-5-house-architectural-megapack" target="_blank" rel="noopener noreferrer">Itch.io five-house bundle</a>
+          <a class="footer-link" href="https://asaddin02.itch.io" target="_blank" rel="noopener noreferrer">Itch.io creator catalog</a>
+          <a class="footer-link" href="https://www.cgtrader.com/designers/prasadaarif" target="_blank" rel="noopener noreferrer">CGTrader studio profile</a>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p class="footer-note">Renders captured directly in Blender 5.2 Cycles and Unreal Engine 5.8. Selected texture and asset generation stages used AI assistance, disclosed on every marketplace listing.</p>
+        <p class="footer-note">© 2026 FullHouse3D, Prasada Arif Nurudin</p>
+      </div>
+    </div>
+  </footer>
+
+  <dialog id="project-modal" class="project-dialog" aria-labelledby="modal-title" aria-modal="true">
+    <div class="dialog-shell">
+      <div class="dialog-header">
+        <div class="dialog-title-wrap">
+          <h3 id="modal-title">Scene title</h3>
+          <span id="modal-subtitle" class="spec-key">Architectural specification</span>
+        </div>
+        <button id="modal-close" class="dialog-close" type="button" aria-label="Close scene inspector">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="dialog-body">
+        <div class="dialog-media">
+          <div id="modal-stage" class="dialog-stage"></div>
+          <div id="modal-thumbs" class="dialog-thumbs" role="group" aria-label="Gallery renders"></div>
+          <div>
+            <button id="modal-video-toggle" class="btn btn-secondary btn-compact" type="button" hidden>Play tour video</button>
+          </div>
+        </div>
+
+        <div class="dialog-info">
+          <p id="modal-summary" class="project-summary"></p>
+          <div id="modal-specs" class="dialog-specs"></div>
+          <ul id="modal-highlights" class="dialog-highlights"></ul>
+
+          <div class="dialog-buy-stack">
+            <div class="dialog-buy-row">
+              <a id="modal-buy-gumroad" class="btn btn-primary btn-compact" href="#" target="_blank" rel="noopener noreferrer">Buy on Gumroad</a>
+              <a id="modal-buy-itch" class="btn btn-secondary btn-compact" href="#" target="_blank" rel="noopener noreferrer">Buy on Itch.io</a>
+            </div>
+            <a id="modal-buy-cgtrader" class="btn btn-quiet btn-compact" href="#" target="_blank" rel="noopener noreferrer">View on CGTrader</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
